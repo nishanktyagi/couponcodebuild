@@ -13,7 +13,12 @@ jobs:
 
     steps:
       - name: Checkout the files
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3 # Updated to v3
+
+      - name: Set up Node.js 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
 
       - name: Deploy to Server 1
         uses: easingthemes/ssh-deploy@main
@@ -34,5 +39,10 @@ jobs:
             sudo apt-get install -y apache2
             sudo systemctl start apache2
             sudo systemctl enable apache2
+            # Check and remove existing assets directory if it exists
+            if [ -d "/var/www/html/assets" ]; then
+              sudo rm -rf /var/www/html/assets
+            fi
+            # Move new files to the web root
             cd home
             sudo mv * /var/www/html
