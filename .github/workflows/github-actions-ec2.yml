@@ -1,48 +1,33 @@
-name: Push-to-EC2
+name: Deploy
 
-# Trigger deployment only on push to main branch
 on:
   push:
     branches:
-      - main
+      - main  # Update to your branch
 
 jobs:
   deploy:
-    name: Deploy to EC2 on main branch push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout the files
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Server 1
-        uses: easingthemes/ssh-deploy@main
+      - name: Verify SSH connection
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} "echo SSH connection successful"
+
+      - name: Rsync files
+        run: |
+          rsync -avz --exclude='.git' -e "ssh -p 22 -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" ./ ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:/path/to/destination
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-          REMOTE_HOST: ${{ secrets.HOST_DNS }}
-          REMOTE_USER: ${{ secrets.USERNAME }}
-          TARGET: ${{ secrets.TARGET_DIR }}
-
-      - name: Executing remote ssh commands using ssh key
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST_DNS }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            sudo apt-get -y update
-            sudo apt-get install -y apache2
-            sudo systemctl start apache2
-            sudo systemctl enable apache2
-            # Check and remove existing assets directory if it exists
-            if [ -d "/var/www/html/assets" ]; then
-              sudo rm -rf /var/www/html/assets
-            fi
-            # Move new files to the web root
-            cd home
-            sudo mv * /var/www/html
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
